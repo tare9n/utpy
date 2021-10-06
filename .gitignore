@@ -1,0 +1,5 @@
+tools/
+venv/
+analysehtml.docx
+responseContext.docx
+.pypirc
