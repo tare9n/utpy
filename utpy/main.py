@@ -2,6 +2,9 @@ import json
 import re
 import urllib3
 from exceptions import *
+from pathlib import Path
+import requests
+
 
 class Load:
     def __init__(self, url):
@@ -11,7 +14,8 @@ class Load:
     def url_analyze(self):
         url = self.url
         if 'youtube.com/' in url or 'youtu.be/' in url:
-            is_video_url = re.findall('/watch\?v=(.{11})($|&| )', url) or re.findall('youtu\.be/(.{11})', url)
+            is_video_url = re.findall(
+                '/watch\?v=(.{11})($|&| )', url) or re.findall('youtu\.be/(.{11})', url)
             find_plylist_id = re.findall('list=(.{34})', url)
             find_video_index = re.findall('index=(\d*)', url)
             is_playlist_url = re.findall('/playlist\?list=(.{34})', url)
@@ -61,7 +65,8 @@ class Load:
         response = http.request('GET', url)
         if self.url_analyze['video']['url']:
             video_html = response.data.decode('utf-8')
-            data = re.findall('ytInitialPlayerResponse\s*=\s*({.+?})\s*;\s*(?:var\s+meta|<\/script|\n)', video_html)
+            data = re.findall(
+                'ytInitialPlayerResponse\s*=\s*({.+?})\s*;\s*(?:var\s+meta|<\/script|\n)', video_html)
             json_data = json.loads(data[0])
             video_title = json_data['videoDetails']['title']
             video_time = json_data['videoDetails']['lengthSeconds']
@@ -74,7 +79,7 @@ class Load:
                 formats.update(
                     {f'{quality}': {
                         'type': '.' + format_type,
-                        'url': f['url']  
+                        'url': f['url']
                     }}
                 )
             video_info = {
@@ -95,9 +100,11 @@ class Load:
             playlist_info = None
         elif self.url_analyze['playlist']['url']:
             playlist_html = response.data.decode('utf-8')
-            data = re.findall('ytInitialData\s*=\s*({.+?})\s*;\s*(?:var\s+meta|<\/script|\n)', playlist_html)
+            data = re.findall(
+                'ytInitialData\s*=\s*({.+?})\s*;\s*(?:var\s+meta|<\/script|\n)', playlist_html)
             json_data = json.loads(data[0])
-            data_of_videos = json_data['contents']['twoColumnBrowseResultsRenderer']['tabs'][0]['tabRenderer']['content']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]['playlistVideoListRenderer']['contents']
+            data_of_videos = json_data['contents']['twoColumnBrowseResultsRenderer']['tabs'][0]['tabRenderer']['content'][
+                'sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]['playlistVideoListRenderer']['contents']
             videos = dict()
             for i in data_of_videos:
                 index = i['playlistVideoRenderer']['index']['simpleText']
@@ -125,5 +132,29 @@ class Load:
         }
         return result
 
-    def download(self):
-        pass
+    def download(self, quality='720p'):
+        if self.url_analyze['video']['url']:
+            url = self.data['video']['formats'][quality]['url']
+            file_name = self.data['video']['title'] + f' - {quality}'
+            file_type = self.data['video']['formats'][quality]['type']
+            resume_hearder = ({'Range': f'bytes=0-'})
+            open_mode = 'wb'
+            try:
+                path = Path(file_name + file_type)
+                resume_hearder = ({'Range': f'bytes={path.stat().st_size}-'})
+                open_mode = 'ab'
+            except:
+                pass
+            r = requests.get(url, stream=True, headers=resume_hearder)
+            file_size = float(r.headers.get(
+                'content-length', 0)) / (1024 * 1024)
+            with open(f'./%s%s' % (file_name, file_type), open_mode) as file:
+                for chunk in r.iter_content(32 * 1024):
+                    file_size -= 0.03125
+                    print(f'[-] Downloading %s. [%.2f Mb]    ' %
+                          (file_name, file_size), end='\r')
+                    file.write(chunk)
+            path = Path(file_name)
+            downloaded_size = path.stat().st_size / (1024 * 1024)
+            print(f'[+] %s completely downloaded. [%.2f Mb]' %
+                  (file_name, downloaded_size))

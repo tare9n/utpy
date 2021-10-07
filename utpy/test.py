@@ -17,6 +17,6 @@ url = 'https://www.youtube.com/watch?v=NH4VZaP3_9s&list=PLOLrQ9Pn6cay_BE9pz1djcq
 # info_json = json.loads(ytinitdata[0])
 
 # print(info_json['microformat']['microformatDataRenderer']['urlCanonical'])
-yt= Load(url)
+utpy= Load(url)
 
-print(yt.data)
+utpy.download('360p') # or 720p
