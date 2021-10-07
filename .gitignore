@@ -3,3 +3,5 @@ venv/
 analysehtml.docx
 responseContext.docx
 .pypirc
+utpy/__pycache__/
+exepttest.py

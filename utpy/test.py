@@ -1,7 +1,7 @@
 import urllib3
 import re
 import json
-from main import load
+from main import Load
 
 # re= ytInitialData\s*=\s*({.+?})\s*;\s*(?:var\s+meta|<\/script|\n)
 
@@ -17,6 +17,6 @@ url = 'https://www.youtube.com/watch?v=NH4VZaP3_9s&list=PLOLrQ9Pn6cay_BE9pz1djcq
 # info_json = json.loads(ytinitdata[0])
 
 # print(info_json['microformat']['microformatDataRenderer']['urlCanonical'])
-yt= load(url)
+yt= Load(url)
 
-print(yt.data())
+print(yt.data)
