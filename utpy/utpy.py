@@ -74,12 +74,17 @@ class Load:
             formats_data = json_data['streamingData']['formats']
             formats = dict()
             for f in formats_data:
+                print(f)
                 quality = f['qualityLabel']
                 format_type = f['mimeType'].split(';')[0].split('/')[-1]
+                try:
+                    url = f['url']
+                except:
+                    raise SignatureCipher()
                 formats.update(
                     {f'{quality}': {
                         'type': '.' + format_type,
-                        'url': f['url']
+                        'url': url,
                     }}
                 )
             video_info = {
@@ -190,7 +195,7 @@ class Load:
                 with open(file_path, open_mode) as file:
                     for chunk in r.iter_content(32 * 1024):
                         file_size -= 0.03125
-                        print(f'[-] Downloading %s. [%.2f Mb]    ' %(show_name, file_size), end='\r')
+                        print(f'[-] Downloading %s [%.2f Mb]    ' %(show_name, file_size), end='\r')
                         file.write(chunk)
                 downloaded_size = file_path.stat().st_size / (1024 * 1024)
                 print(f'[+] %s Completely Downloaded. [%.2f Mb]' %(show_name, downloaded_size))
