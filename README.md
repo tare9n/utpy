@@ -21,7 +21,7 @@ url = 'https://www.youtube.com/watch?v=bIGBYOcxMqM' # video or playlist url
 yt = utpy.Load(url)
 
 # return all information as dic
-print(yt.data)
+yt.data
 
 # download video or videos of playlist
 yt.download()

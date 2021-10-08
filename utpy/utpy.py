@@ -74,7 +74,6 @@ class Load:
             formats_data = json_data['streamingData']['formats']
             formats = dict()
             for f in formats_data:
-                print(f)
                 quality = f['qualityLabel']
                 format_type = f['mimeType'].split(';')[0].split('/')[-1]
                 try:
