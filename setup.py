@@ -6,9 +6,9 @@ long_description = open('README.md').read()
 
 setuptools.setup(
     name="utpy", 
-    version="0.6.5",
+    version="0.6.7",
     author="Taregh Naderi",
-    install_requires=['urllib3', 'json', 'pathlib', 'requests', 're'],
+    install_requires=[],
     author_email="taregh.n@gmail.com",
     description="youtube downloader python package",
     long_description=long_description,
