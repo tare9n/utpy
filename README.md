@@ -17,7 +17,7 @@ pip install utpy
 ```python
 import utpy
 
-url = 'https://www.youtube.com/watch?v=3Q_8lPkJm2M' # video or playlist url
+url = 'https://www.youtube.com/watch?v=bIGBYOcxMqM' # video or playlist url
 yt = utpy.Load(url)
 
 # return all information as dic
