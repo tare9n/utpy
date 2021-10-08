@@ -1,7 +1,7 @@
 import json
 import re
 import urllib3
-from exceptions import *
+from .exceptions import *
 from pathlib import Path
 import requests
 
@@ -100,11 +100,9 @@ class Load:
             playlist_info = None
         elif self.url_analyze['playlist']['url']:
             playlist_html = response.data.decode('utf-8')
-            data = re.findall(
-                'ytInitialData\s*=\s*({.+?})\s*;\s*(?:var\s+meta|<\/script|\n)', playlist_html)
+            data = re.findall('ytInitialData\s*=\s*({.+?})\s*;\s*(?:var\s+meta|<\/script|\n)', playlist_html)
             json_data = json.loads(data[0])
-            data_of_videos = json_data['contents']['twoColumnBrowseResultsRenderer']['tabs'][0]['tabRenderer']['content'][
-                'sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]['playlistVideoListRenderer']['contents']
+            data_of_videos = json_data['contents']['twoColumnBrowseResultsRenderer']['tabs'][0]['tabRenderer']['content']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]['playlistVideoListRenderer']['contents']
             videos = dict()
             for i in data_of_videos:
                 index = i['playlistVideoRenderer']['index']['simpleText']
@@ -118,9 +116,11 @@ class Load:
                         'url': video_url,
                     }
                 })
-            playlist_title = json_data['j']
+            playlist_title = json_data['metadata']['playlistMetadataRenderer']['title']
             playlist_info = {
+                'id': self.url_analyze['playlist']['id'], 
                 'title': playlist_title,
+                'url': self.url_analyze['playlist']['url'],
                 'videos': videos,
             }
             video_info = None
@@ -132,29 +132,76 @@ class Load:
         }
         return result
 
-    def download(self, quality='720p'):
+    @property
+    def _select_quality(self):
+        quality_list = list(self.data['video']['formats'].keys())
+        quality_list.sort()
+        selected = quality_list[-1]
+        return selected
+
+    @property
+    def _get_dl_dir(self):
+        path_to_utpy_dir = Path.home() / 'Downloads' / 'utpy'
+        if not path_to_utpy_dir.is_dir():
+            path_to_utpy_dir.mkdir()
+        if self.url_analyze['playlist']['url']:
+            pl_title = self.data['playlist']['title']
+            pl_dir_name = re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', pl_title))
+            dl_dir_path = path_to_utpy_dir / pl_dir_name
+            if not dl_dir_path.is_dir():
+                dl_dir_path.mkdir()
+        else:
+            dl_dir_path = path_to_utpy_dir
+        return dl_dir_path
+
+    def download(self, url= None, quality= None, save_to=None):
+        if url:
+            self.__init__(url)
+        if not quality and self.url_analyze['video']['url']:
+            quality = self._select_quality
+        if not save_to:
+            save_to = self._get_dl_dir
         if self.url_analyze['video']['url']:
             url = self.data['video']['formats'][quality]['url']
             file_name = self.data['video']['title'] + f' - {quality}'
+            file_name = re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', file_name))
             file_type = self.data['video']['formats'][quality]['type']
+            file_full_name = file_name + file_type
             resume_hearder = ({'Range': f'bytes=0-'})
+            file_path = Path(save_to / file_name)
             open_mode = 'wb'
-            try:
-                path = Path(file_name + file_type)
-                resume_hearder = ({'Range': f'bytes={path.stat().st_size}-'})
-                open_mode = 'ab'
-            except:
-                pass
-            r = requests.get(url, stream=True, headers=resume_hearder)
-            file_size = float(r.headers.get(
-                'content-length', 0)) / (1024 * 1024)
-            with open(f'./%s%s' % (file_name, file_type), open_mode) as file:
-                for chunk in r.iter_content(32 * 1024):
-                    file_size -= 0.03125
-                    print(f'[-] Downloading %s. [%.2f Mb]    ' %
-                          (file_name, file_size), end='\r')
-                    file.write(chunk)
-            path = Path(file_name)
-            downloaded_size = path.stat().st_size / (1024 * 1024)
-            print(f'[+] %s completely downloaded. [%.2f Mb]' %
-                  (file_name, downloaded_size))
+            if len(file_name) > 30:
+                show_name = file_name[:30] + '...'
+            else:
+                show_name = file_name
+            if Path(save_to / file_full_name).exists():
+                file_path = Path(save_to / file_full_name)
+                downloaded_size = file_path.stat().st_size / (1024 * 1024)
+                print(f'[+] %s completely downloaded. [%.2f Mb]' %(show_name, downloaded_size)) 
+            else:
+                try:
+                    path = Path(file_path)
+                    resume_hearder = ({'Range': f'bytes={path.stat().st_size}-'})
+                    open_mode = 'ab'
+                except:
+                    pass
+                r = requests.get(url, stream=True, headers=resume_hearder)
+                file_size = float(r.headers.get('content-length', 0)) / (1024 * 1024)
+                with open(file_path, open_mode) as file:
+                    for chunk in r.iter_content(32 * 1024):
+                        file_size -= 0.03125
+                        print(f'[-] Downloading %s. [%.2f Mb]    ' %(show_name, file_size), end='\r')
+                        file.write(chunk)
+                downloaded_size = file_path.stat().st_size / (1024 * 1024)
+                print(f'[+] %s Completely Downloaded. [%.2f Mb]' %(show_name, downloaded_size))
+                file_path.rename(file_path.with_suffix(file_type))
+        elif self.url_analyze['playlist']['url']:
+            videos = self.data['playlist']['videos']
+            dir_path = save_to
+            print('[-] Downloading Playlist ... ')
+            for vid in videos:
+                url = videos[vid]['url']
+                self.download(url, save_to=dir_path)
+            print('[+] Playlist Downloaded Successfully.')
+
+            

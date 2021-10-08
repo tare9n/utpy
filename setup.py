@@ -1,16 +1,19 @@
 import setuptools
 
 
+
+long_description = open('README.md').read()
+
 setuptools.setup(
     name="utpy", 
-    version="0.0.1",
+    version="0.6.5",
     author="Taregh Naderi",
-    install_requires=['docutils>=0.3'],
+    install_requires=['urllib3', 'json', 'pathlib', 'requests', 're'],
     author_email="taregh.n@gmail.com",
-    description="A small example package",
-    long_description="long description goes here",
+    description="youtube downloader python package",
+    long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/iamvee/test",
+    url="https://github.com/tare9n/utpy",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
