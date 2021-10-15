@@ -20,7 +20,7 @@ import utpy
 url = 'https://www.youtube.com/watch?v=bIGBYOcxMqM' # video or playlist url
 yt = utpy.Load(url)
 
-# return all information as dic
+# return all information as dictionary
 yt.data
 
 # download video or videos of playlist

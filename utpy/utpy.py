@@ -4,6 +4,7 @@ import urllib3
 from .exceptions import *
 from pathlib import Path
 import requests
+from rich import print
 
 
 class Load:
@@ -181,7 +182,7 @@ class Load:
             if Path(save_to / file_full_name).exists():
                 file_path = Path(save_to / file_full_name)
                 downloaded_size = file_path.stat().st_size / (1024 * 1024)
-                print(f'[+] %s completely downloaded. [%.2f Mb]' %(show_name, downloaded_size)) 
+                print(f'[green][+][/green] %s [green]completely downloaded[/green]. [%.2f Mb]' %(show_name, downloaded_size)) 
             else:
                 try:
                     path = Path(file_path)
@@ -194,18 +195,18 @@ class Load:
                 with open(file_path, open_mode) as file:
                     for chunk in r.iter_content(32 * 1024):
                         file_size -= 0.03125
-                        print(f'[-] Downloading %s [%.2f Mb]    ' %(show_name, file_size), end='\r')
+                        print(f'[red][-][/red] Downloading %s [%.2f Mb]    ' %(show_name, file_size), end='\r')
                         file.write(chunk)
                 downloaded_size = file_path.stat().st_size / (1024 * 1024)
-                print(f'[+] %s Completely Downloaded. [%.2f Mb]' %(show_name, downloaded_size))
+                print(f'[green][+][/green] %s [green]completely downloaded[/green]. [%.2f Mb]' %(show_name, downloaded_size))
                 file_path.rename(file_path.with_suffix(file_type))
         elif self.url_analyze['playlist']['url']:
             videos = self.data['playlist']['videos']
             dir_path = save_to
-            print('[-] Downloading Playlist ... ')
+            print('[red][-][/red] Downloading Playlist ... ')
             for vid in videos:
                 url = videos[vid]['url']
                 self.download(url, save_to=dir_path)
-            print('[+] Playlist Downloaded Successfully.')
+            print('[green][+] Playlist Downloaded Successfully.[/green]')
 
             
