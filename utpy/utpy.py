@@ -176,7 +176,7 @@ class Load:
             save_to = self._get_dl_dir
         if self._url_analyze['video']['url']:
             url = self.data['video']['formats'][quality]['url']
-            file_name = self.data['video']['title'] + f' - {quality}'
+            file_name = self.data['video']['title'] + f' - {quality}.utpy'
             file_name = re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', file_name))
             file_type = self.data['video']['formats'][quality]['type']
             file_full_name = file_name + file_type
