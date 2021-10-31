@@ -1,7 +1,6 @@
-from os import pardir
 import requests
 import re
-from dicts import decode_dict
+from .dicts import decode_dict
 
 # Read base.js ---------------------------------
 def get_task_list(base_js_url):

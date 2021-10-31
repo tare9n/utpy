@@ -1,8 +1,8 @@
 import json
 import re
 import urllib3
-from exceptions import *
-from decipher import decipher
+from .exceptions import *
+from .decipher import decipher
 from pathlib import Path
 import requests
 from rich import print
