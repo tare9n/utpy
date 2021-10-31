@@ -177,6 +177,7 @@ class Load:
         if self._url_analyze['video']['url']:
             url = self.data['video']['formats'][quality]['url']
             video_title = self.data['video']['title'] + f' - {quality}'
+            video_title =re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', video_title))
             file_name = video_title + '.utpy'
             file_name = re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', file_name))
             file_type = self.data['video']['formats'][quality]['type']
