@@ -1,7 +1,8 @@
 import json
 import re
 import urllib3
-from .exceptions import *
+from exceptions import *
+from decipher import decipher
 from pathlib import Path
 import requests
 from rich import print
@@ -12,7 +13,7 @@ class Load:
         self.url = url
 
     @property
-    def url_analyze(self):
+    def _url_analyze(self):
         url = self.url
         if 'youtube.com/' in url or 'youtu.be/' in url:
             is_video_url = re.findall(
@@ -62,9 +63,13 @@ class Load:
     @property
     def data(self):
         http = urllib3.PoolManager()
-        url = self.url_analyze['video']['url'] or self.url_analyze['playlist']['url']
-        response = http.request('GET', url)
-        if self.url_analyze['video']['url']:
+        url = self._url_analyze['video']['url'] or self._url_analyze['playlist']['url']
+        headers = {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.76 Safari/537.36",
+            "accept-language": "en,zh-CN;q=0.9,zh;q=0.8,ja;q=0.7,ar;q=0.6"
+            }
+        response = http.request('GET', url, headers=headers)
+        if self._url_analyze['video']['url']:
             video_html = response.data.decode('utf-8')
             data = re.findall(
                 'ytInitialPlayerResponse\s*=\s*({.+?})\s*;\s*(?:var\s+meta|<\/script|\n)', video_html)
@@ -80,7 +85,10 @@ class Load:
                 try:
                     url = f['url']
                 except:
-                    raise SignatureCipher()
+                    signature = f['signatureCipher']
+                    base_js = re.search(r'\"jsUrl\":\"(.*?base\.js)\"', video_html).groups()[0]
+                    base_js = 'https://www.youtube.com/' + base_js
+                    url = decipher(signature, base_js)
                 formats.update(
                     {f'{quality}': {
                         'type': '.' + format_type,
@@ -89,8 +97,8 @@ class Load:
                 )
             video_info = {
                 'title': video_title,
-                'id': self.url_analyze['video']['id'],
-                'url': self.url_analyze['video']['url'],
+                'id': self._url_analyze['video']['id'],
+                'url': self._url_analyze['video']['url'],
                 'time': video_time,
                 'description': video_description,
                 'formats': formats,
@@ -103,7 +111,7 @@ class Load:
                 'name': channel_name,
             }
             playlist_info = None
-        elif self.url_analyze['playlist']['url']:
+        elif self._url_analyze['playlist']['url']:
             playlist_html = response.data.decode('utf-8')
             data = re.findall('ytInitialData\s*=\s*({.+?})\s*;\s*(?:var\s+meta|<\/script|\n)', playlist_html)
             json_data = json.loads(data[0])
@@ -123,9 +131,9 @@ class Load:
                 })
             playlist_title = json_data['metadata']['playlistMetadataRenderer']['title']
             playlist_info = {
-                'id': self.url_analyze['playlist']['id'], 
+                'id': self._url_analyze['playlist']['id'], 
                 'title': playlist_title,
-                'url': self.url_analyze['playlist']['url'],
+                'url': self._url_analyze['playlist']['url'],
                 'videos': videos,
             }
             video_info = None
@@ -149,7 +157,7 @@ class Load:
         path_to_utpy_dir = Path.home() / 'Downloads' / 'utpy'
         if not path_to_utpy_dir.is_dir():
             path_to_utpy_dir.mkdir()
-        if self.url_analyze['playlist']['url']:
+        if self._url_analyze['playlist']['url']:
             pl_title = self.data['playlist']['title']
             pl_dir_name = re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', pl_title))
             dl_dir_path = path_to_utpy_dir / pl_dir_name
@@ -162,11 +170,11 @@ class Load:
     def download(self, url= None, quality= None, save_to=None):
         if url:
             self.__init__(url)
-        if not quality and self.url_analyze['video']['url']:
+        if not quality and self._url_analyze['video']['url']:
             quality = self._select_quality
         if not save_to:
             save_to = self._get_dl_dir
-        if self.url_analyze['video']['url']:
+        if self._url_analyze['video']['url']:
             url = self.data['video']['formats'][quality]['url']
             file_name = self.data['video']['title'] + f' - {quality}'
             file_name = re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', file_name))
@@ -182,7 +190,7 @@ class Load:
             if Path(save_to / file_full_name).exists():
                 file_path = Path(save_to / file_full_name)
                 downloaded_size = file_path.stat().st_size / (1024 * 1024)
-                print(f'[green][+][/green] %s [green]completely downloaded[/green]. [%.2f Mb]' %(show_name, downloaded_size)) 
+                print(f'[green][+] %s completely downloaded. [%.2f Mb][/green]' %(show_name, downloaded_size)) 
             else:
                 try:
                     path = Path(file_path)
@@ -195,18 +203,16 @@ class Load:
                 with open(file_path, open_mode) as file:
                     for chunk in r.iter_content(32 * 1024):
                         file_size -= 0.03125
-                        print(f'[red][-][/red] Downloading %s [%.2f Mb]    ' %(show_name, file_size), end='\r')
+                        print(f'[yellow][-] Downloading %s [%.2f Mb][/yellow]    ' %(show_name, file_size), end='\r')
                         file.write(chunk)
                 downloaded_size = file_path.stat().st_size / (1024 * 1024)
-                print(f'[green][+][/green] %s [green]completely downloaded[/green]. [%.2f Mb]' %(show_name, downloaded_size))
+                print(f'[green][+] %s completely downloaded. [%.2f Mb][/green]' %(show_name, downloaded_size))
                 file_path.rename(file_path.with_suffix(file_type))
-        elif self.url_analyze['playlist']['url']:
+        elif self._url_analyze['playlist']['url']:
             videos = self.data['playlist']['videos']
             dir_path = save_to
-            print('[red][-][/red] Downloading Playlist ... ')
+            print('[yellow][-] Downloading Playlist ... [/yellow]')
             for vid in videos:
                 url = videos[vid]['url']
                 self.download(url, save_to=dir_path)
             print('[green][+] Playlist Downloaded Successfully.[/green]')
-
-            
