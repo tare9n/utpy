@@ -199,7 +199,8 @@ class Load:
                     break
         resp.release_conn()
         downloaded_mb = file_size  / (1024 * 1024)
-        print(f'[+] %s downloaded. [%.2f Mb] \n    -> Saved in: %s' %(show_name, downloaded_mb, save_to))
+        print(f'[+] %s [%.2f Mb] downloaded successfully.    \n    -> Saved in: %s' 
+                %(show_name, downloaded_mb, save_to))
         utpy_file_path.rename(utpy_file_path.with_suffix(file_type))
 
     def _downloader(self, url, save_to, file_name, retries):
@@ -233,8 +234,7 @@ class Load:
                 resp = http.request('GET', url, preload_content=False, headers=resume_headers)
                 file_size = int(resp.headers['Content-Length']) + downloaded
 
-
-    def download(self, url= None, quality= None, save_to=None, index=None, retries=2):
+    def download(self, url= None, quality= None, save_to=None, index=None, retries=3):
         if url:
             self.__init__(url)
         if not quality and self._url_analyze['video']['url']:
@@ -250,7 +250,7 @@ class Load:
             file_type = self.data['video']['formats'][quality]['type']
             file_name = video_title + file_type
             if Path(save_to / file_name).exists():
-                print(f'[+] This one exists in: %s ' %(save_to)) 
+                print(f'[+] This file exists in: %s ' %(save_to)) 
             else:
                 self._downloader(url, save_to, file_name, retries)
 
