@@ -4,9 +4,6 @@ import urllib3
 from .exceptions import *
 from .decipher import decipher
 from pathlib import Path
-import requests
-from rich import print
-
 
 class Load:
     def __init__(self, url):
@@ -108,36 +105,49 @@ class Load:
             channel_name = json_data['videoDetails']['author']
             channel_info = {
                 'id': channel_id,
+                'url': 'https://www.youtube.com/channel/' + channel_id,
                 'name': channel_name,
             }
             playlist_info = None
         elif self._url_analyze['playlist']['url']:
             playlist_html = response.data.decode('utf-8')
-            data = re.findall('ytInitialData\s*=\s*({.+?})\s*;\s*(?:var\s+meta|<\/script|\n)', playlist_html)
+            data = re.findall(r'(\[{\"playlistVideoRenderer\":.*}]}}}]}}])', playlist_html)
             json_data = json.loads(data[0])
-            data_of_videos = json_data['contents']['twoColumnBrowseResultsRenderer']['tabs'][0]['tabRenderer']['content']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]['playlistVideoListRenderer']['contents']
             videos = dict()
-            for i in data_of_videos:
-                index = i['playlistVideoRenderer']['index']['simpleText']
+            for i in json_data:
+                title = i['playlistVideoRenderer']['title']['runs'][0]['text']
                 video_id = i['playlistVideoRenderer']['videoId']
+                index = i['playlistVideoRenderer']['index']['simpleText']
                 video_url = 'https://www.youtube.com/watch?v=' + video_id
+                length_text = i['playlistVideoRenderer']['lengthText']['simpleText']
+                length = int(i['playlistVideoRenderer']['lengthSeconds'])
                 videos.update({
                     f'{index}': {
                         'index': index,
-                        'title': i['playlistVideoRenderer']['title']['runs'][0]['text'],
+                        'title': title,
                         'id': video_id,
                         'url': video_url,
+                        'length': length,
+                        'length_text': length_text,
                     }
                 })
-            playlist_title = json_data['metadata']['playlistMetadataRenderer']['title']
+            playlist_title = re.findall(r'playlistMetadataRenderer\":{\"title\":\"(.*?)\",', playlist_html)[0]
             playlist_info = {
+                'videos_count': len(json_data),
                 'id': self._url_analyze['playlist']['id'], 
                 'title': playlist_title,
                 'url': self._url_analyze['playlist']['url'],
                 'videos': videos,
             }
             video_info = None
-            channel_info = None
+            select_a_video =json_data[0]
+            channel_id = re.findall(r"'browseId': *'(.{24})'", str(select_a_video))[0]
+            channel_name = select_a_video['playlistVideoRenderer']['shortBylineText']['runs'][0]['text']
+            channel_info = {
+                'id': channel_id,
+                'url': 'https://www.youtube.com/channel/' + channel_id,
+                'name': channel_name,
+            }
         result = {
             'video': video_info,
             'playlist': playlist_info,
@@ -157,7 +167,7 @@ class Load:
         path_to_utpy_dir = Path.home() / 'Downloads' / 'utpy'
         if not path_to_utpy_dir.is_dir():
             path_to_utpy_dir.mkdir()
-        if self._url_analyze['playlist']['url']:
+        if self._url_analyze['playlist']['url'] and self.data['playlist']:
             pl_title = self.data['playlist']['title']
             pl_dir_name = re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', pl_title))
             dl_dir_path = path_to_utpy_dir / pl_dir_name
@@ -167,7 +177,64 @@ class Load:
             dl_dir_path = path_to_utpy_dir
         return dl_dir_path
 
-    def download(self, url= None, quality= None, save_to=None):
+    def _make_file(self, utpy_file_path, open_mode, resp, downloaded, file_size, show_name, file_type, save_to):
+        utpy_file_path = utpy_file_path
+        open_mode = open_mode
+        resp = resp
+        downloaded = downloaded
+        file_size = file_size
+        show_name = show_name
+        file_type = file_type
+        save_to = save_to
+        with open(utpy_file_path, open_mode) as file:
+            while True:
+                chunk = resp.read(32 * 1024)
+                if chunk: 
+                    file.write(chunk)
+                    downloaded += len(chunk)
+                    percent = (downloaded / int(file_size)) * 100
+                    print('[-] Downloading: %s [%.2f %s / %.2f Mb]     '
+                            % (show_name, percent, '%', (file_size / (1024*1024))), end='\r')
+                else: 
+                    break
+        resp.release_conn()
+        downloaded_mb = file_size  / (1024 * 1024)
+        print(f'[+] %s downloaded. [%.2f Mb] \n    -> Saved in: %s' %(show_name, downloaded_mb, save_to))
+        utpy_file_path.rename(utpy_file_path.with_suffix(file_type))
+
+    def _downloader(self, url, save_to, file_name, retries):
+        file_type = '.' + file_name.split('.')[-1]
+        utpy_file_name = re.sub(file_type, '.utpy', file_name)
+        utpy_file_path = Path(save_to / utpy_file_name)
+        try:
+            downloaded = utpy_file_path.stat().st_size
+            resume_headers = ({'Range': f'bytes={downloaded}-'})
+            open_mode = 'ab'
+        except:
+            downloaded = 0
+            resume_headers = ({'Range': f'bytes=0-'})
+            open_mode = 'wb'
+            pass
+        if len(file_name) > 30:
+            show_name = file_name[:27] + '...'
+        else:
+            show_name = file_name
+        http = urllib3.PoolManager()
+        resp = http.request('GET', url, preload_content=False, headers=resume_headers)
+        file_size = int(resp.headers['Content-Length']) + downloaded
+        for i in range(retries + 1):
+            if i == retries:
+                raise FailedToGetContent()
+            if file_size > downloaded:
+                self._make_file(utpy_file_path, open_mode, resp, downloaded, file_size, show_name, file_type, save_to)
+                break
+            else:
+                print(f'Content Not found. Trying again ... ({i})')
+                resp = http.request('GET', url, preload_content=False, headers=resume_headers)
+                file_size = int(resp.headers['Content-Length']) + downloaded
+
+
+    def download(self, url= None, quality= None, save_to=None, index=None, retries=2):
         if url:
             self.__init__(url)
         if not quality and self._url_analyze['video']['url']:
@@ -176,45 +243,22 @@ class Load:
             save_to = self._get_dl_dir
         if self._url_analyze['video']['url']:
             url = self.data['video']['formats'][quality]['url']
-            video_title = self.data['video']['title'] + f' - {quality}'
-            video_title =re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', video_title))
-            file_name = video_title + '.utpy'
-            file_name = re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', file_name))
+            video_title = self.data['video']['title']
+            if index:
+                video_title = f'{index}- ' + video_title
+            video_title =re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', video_title)).strip()
             file_type = self.data['video']['formats'][quality]['type']
-            file_full_name = video_title + file_type
-            resume_hearder = ({'Range': f'bytes=0-'})
-            file_path = Path(save_to / file_name)
-            open_mode = 'wb'
-            if len(file_name) > 30:
-                show_name = file_name[:30] + '...'
+            file_name = video_title + file_type
+            if Path(save_to / file_name).exists():
+                print(f'[+] This one exists in: %s ' %(save_to)) 
             else:
-                show_name = file_name
-            if Path(save_to / file_full_name).exists():
-                file_path = Path(save_to / file_full_name)
-                downloaded_size = file_path.stat().st_size / (1024 * 1024)
-                print(f'[green][+] %s completely downloaded. [%.2f Mb][/green]' %(show_name, downloaded_size)) 
-            else:
-                try:
-                    path = Path(file_path)
-                    resume_hearder = ({'Range': f'bytes={path.stat().st_size}-'})
-                    open_mode = 'ab'
-                except:
-                    pass
-                r = requests.get(url, stream=True, headers=resume_hearder)
-                file_size = float(r.headers.get('content-length', 0)) / (1024 * 1024)
-                with open(file_path, open_mode) as file:
-                    for chunk in r.iter_content(32 * 1024):
-                        file_size -= 0.03125
-                        print(f'[yellow][-] Downloading %s [%.2f Mb][/yellow]    ' %(show_name, file_size), end='\r')
-                        file.write(chunk)
-                downloaded_size = file_path.stat().st_size / (1024 * 1024)
-                print(f'[green][+] %s completely downloaded. [%.2f Mb][/green]' %(show_name, downloaded_size))
-                file_path.rename(file_path.with_suffix(file_type))
+                self._downloader(url, save_to, file_name, retries)
+
         elif self._url_analyze['playlist']['url']:
             videos = self.data['playlist']['videos']
             dir_path = save_to
-            print('[yellow][-] Downloading Playlist ... [/yellow]')
+            print('[-] Downloading Playlist ... ')
             for vid in videos:
                 url = videos[vid]['url']
-                self.download(url, save_to=dir_path)
-            print('[green][+] Playlist Downloaded Successfully.[/green]')
+                self.download(url, index=vid ,save_to=dir_path)
+            print('[+] Playlist Downloaded Successfully.')
