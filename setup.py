@@ -6,7 +6,7 @@ long_description = open('README.md').read()
 
 setuptools.setup(
     name="utpy", 
-    version="1.5.1",
+    version="1.7.2",
     author="Taregh Naderi",
     install_requires=[],
     author_email="taregh.n@gmail.com",
