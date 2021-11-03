@@ -6,7 +6,7 @@ from .decipher import decipher
 from pathlib import Path
 
 class Load:
-    def __init__(self, url):
+    def __init__(self, url: str, ):
         self.url = url
 
     @property
@@ -177,33 +177,7 @@ class Load:
             dl_dir_path = path_to_utpy_dir
         return dl_dir_path
 
-    def _make_file(self, utpy_file_path, open_mode, resp, downloaded, file_size, show_name, file_type, save_to):
-        utpy_file_path = utpy_file_path
-        open_mode = open_mode
-        resp = resp
-        downloaded = downloaded
-        file_size = file_size
-        show_name = show_name
-        file_type = file_type
-        save_to = save_to
-        with open(utpy_file_path, open_mode) as file:
-            while True:
-                chunk = resp.read(32 * 1024)
-                if chunk: 
-                    file.write(chunk)
-                    downloaded += len(chunk)
-                    percent = (downloaded / int(file_size)) * 100
-                    print('[-] Downloading: %s [%.2f %s / %.2f Mb]     '
-                            % (show_name, percent, '%', (file_size / (1024*1024))), end='\r')
-                else: 
-                    break
-        resp.release_conn()
-        downloaded_mb = file_size  / (1024 * 1024)
-        print(f'[+] %s [%.2f Mb] downloaded successfully.    \n    -> Saved in: %s' 
-                %(show_name, downloaded_mb, save_to))
-        utpy_file_path.rename(utpy_file_path.with_suffix(file_type))
-
-    def _downloader(self, url, save_to, file_name, retries):
+    def _downloader(self, url, save_to, file_name):
         file_type = '.' + file_name.split('.')[-1]
         utpy_file_name = re.sub(file_type, '.utpy', file_name)
         utpy_file_path = Path(save_to / utpy_file_name)
@@ -223,18 +197,27 @@ class Load:
         http = urllib3.PoolManager()
         resp = http.request('GET', url, preload_content=False, headers=resume_headers)
         file_size = int(resp.headers['Content-Length']) + downloaded
-        for i in range(retries + 1):
-            if i == retries:
-                raise FailedToGetContent()
-            if file_size > downloaded:
-                self._make_file(utpy_file_path, open_mode, resp, downloaded, file_size, show_name, file_type, save_to)
-                break
-            else:
-                print(f'Content Not found. Trying again ... ({i})')
-                resp = http.request('GET', url, preload_content=False, headers=resume_headers)
-                file_size = int(resp.headers['Content-Length']) + downloaded
+        if file_size > downloaded:
+            with open(utpy_file_path, open_mode) as file:
+                while True:
+                    chunk = resp.read(32 * 1024)
+                    if chunk: 
+                        file.write(chunk)
+                        downloaded += len(chunk)
+                        percent = (downloaded / int(file_size)) * 100
+                        print('[-] Downloading: %s [%.2f %s / %.2f Mb]     '
+                                % (show_name, percent, '%', (file_size / (1024*1024))), end='\r')
+                    else: 
+                        break
+            resp.release_conn()
+            downloaded_mb = file_size  / (1024 * 1024)
+            print(f'[+] %s [%.2f Mb] downloaded successfully.    \n    -> Saved in: %s' 
+                    %(show_name, downloaded_mb, save_to))
+            utpy_file_path.rename(utpy_file_path.with_suffix(file_type))
+        else:
+            pass
 
-    def download(self, url= None, quality= None, save_to=None, index=None, retries=3):
+    def download(self, url= None, quality= None, save_to=None, index=None):
         if url:
             self.__init__(url)
         if not quality and self._url_analyze['video']['url']:
@@ -252,13 +235,20 @@ class Load:
             if Path(save_to / file_name).exists():
                 print(f'[+] This file exists in: %s ' %(save_to)) 
             else:
-                self._downloader(url, save_to, file_name, retries)
+                self._downloader(url, save_to, file_name)
 
         elif self._url_analyze['playlist']['url']:
             videos = self.data['playlist']['videos']
-            dir_path = save_to
+            downloaded_files = [str(x).split('\\')[-1] for x in  Path(save_to).glob('*.mp4')]
             print('[-] Downloading Playlist ... ')
+            print(f'[!] {len(downloaded_files)} video(s) downloaded befor.')
+            print(f'    -> Downloaded videos are in: {save_to}')
+            print('[-] Resume downloading playlist -> ')
             for vid in videos:
-                url = videos[vid]['url']
-                self.download(url, index=vid ,save_to=dir_path)
+                vid_title = videos[vid]['title']
+                vid_title = re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', vid_title)).strip()
+                file_name = f'{vid}- ' + vid_title + '.mp4'
+                if file_name not in downloaded_files:
+                    url = videos[vid]['url']
+                    self.download(url, quality = quality, index = vid, save_to = save_to)
             print('[+] Playlist Downloaded Successfully.')
