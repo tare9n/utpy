@@ -3,11 +3,41 @@ import re
 import urllib3
 from .exceptions import *
 from .decipher import decipher
+from .dicts import default_settings
 from pathlib import Path
 
+
 class Load:
-    def __init__(self, url: str, ):
+    def __init__(self, url: str, settings: dict = default_settings):
         self.url = url
+        try:
+            self.save_to = settings['save_to']
+        except:
+            self.save_to = None
+        try:
+            self.file_name = settings['file_name']
+        except:
+            self.file_name = None
+        try:
+            self.quality = settings['quality']
+        except:
+            self.quality = None
+        try:
+            self.index = settings['index']
+        except:
+            self.index = None
+        try:
+            self.dl_range = settings['dl_range']
+        except:
+            self.dl_range = ()
+        try:
+            self.dl_list = settings['dl_list']
+        except:
+            self.dl_list = []
+        try:
+            self.retries = settings['retries']
+        except:
+            self.retries = 2
 
     @property
     def _url_analyze(self):
@@ -156,25 +186,29 @@ class Load:
         return result
 
     @property
+    def available_qualities(self):
+        available_qualities = list(self.data['video']['formats'].keys())
+        return available_qualities
+
+    @property
     def _select_quality(self):
-        quality_list = list(self.data['video']['formats'].keys())
+        quality_list = self.available_qualities
         quality_list.sort()
         selected = quality_list[-1]
         return selected
 
     @property
-    def _get_dl_dir(self):
-        path_to_utpy_dir = Path.home() / 'Downloads' / 'utpy'
-        if not path_to_utpy_dir.is_dir():
-            path_to_utpy_dir.mkdir()
-        if self._url_analyze['playlist']['url'] and self.data['playlist']:
-            pl_title = self.data['playlist']['title']
-            pl_dir_name = re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', pl_title))
-            dl_dir_path = path_to_utpy_dir / pl_dir_name
-            if not dl_dir_path.is_dir():
-                dl_dir_path.mkdir()
+    def get_dl_dir_path(self):
+        if self.save_to:
+            dl_dir_path = Path(self.save_to)
         else:
-            dl_dir_path = path_to_utpy_dir
+            dl_dir_path = Path.home() / 'Downloads' / 'utpy'
+            if self._url_analyze['playlist']['url'] and self.data['playlist']:
+                pl_title = self.data['playlist']['title']
+                pl_dir_name = re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', pl_title))
+                dl_dir_path = dl_dir_path / pl_dir_name
+        if not dl_dir_path.is_dir():
+            dl_dir_path.mkdir()
         return dl_dir_path
 
     def _downloader(self, url, save_to, file_name):
@@ -197,58 +231,87 @@ class Load:
         http = urllib3.PoolManager()
         resp = http.request('GET', url, preload_content=False, headers=resume_headers)
         file_size = int(resp.headers['Content-Length']) + downloaded
-        if file_size > downloaded:
-            with open(utpy_file_path, open_mode) as file:
-                while True:
-                    chunk = resp.read(32 * 1024)
-                    if chunk: 
-                        file.write(chunk)
-                        downloaded += len(chunk)
-                        percent = (downloaded / int(file_size)) * 100
-                        print('[-] Downloading: %s [%.2f %s / %.2f Mb]     '
-                                % (show_name, percent, '%', (file_size / (1024*1024))), end='\r')
-                    else: 
-                        break
-            resp.release_conn()
-            downloaded_mb = file_size  / (1024 * 1024)
-            print(f'[+] %s [%.2f Mb] downloaded successfully.    \n    -> Saved in: %s' 
-                    %(show_name, downloaded_mb, save_to))
-            utpy_file_path.rename(utpy_file_path.with_suffix(file_type))
-        else:
-            pass
-
-    def download(self, url= None, quality= None, save_to=None, index=None):
-        if url:
-            self.__init__(url)
+        for t in range(self.retries + 1):
+            if t == self.retries:
+                print(f'Content Of Video Not found. Check internet connection and try again later.')
+            if file_size > downloaded:
+                with open(utpy_file_path, open_mode) as file:
+                    while True:
+                        chunk = resp.read(32 * 1024)
+                        if chunk: 
+                            file.write(chunk)
+                            downloaded += len(chunk)
+                            percent = (downloaded / int(file_size)) * 100
+                            print('[-] Downloading: %s [%.2f %s / %.2f Mb]     '
+                                    % (show_name, percent, '%', (file_size / (1024*1024))), end='\r')
+                        else: 
+                            break
+                resp.release_conn()
+                downloaded_mb = file_size  / (1024 * 1024)
+                print(f'[+] %s [%.2f Mb] downloaded successfully.    ' 
+                        %(show_name, downloaded_mb))
+                utpy_file_path.rename(utpy_file_path.with_suffix(file_type))
+                try:
+                    if is_playlist:
+                        print(f'[-] Preparing Next Download.', end='\r')
+                except NameError: 
+                    print(f'    -> Saved in: %s' % save_to)
+                break
+            else:
+                print(f'Content Not Received. Trying again ... ({t + 1})', end='\r')
+                url= self.url
+                settings = {
+                    'save_to' : save_to,
+                    'file_name': file_name,
+                    'quality' : self.quality,
+                    'index' : self.index,}
+                self.__init__(url, settings=settings)
+                self.download
+    
+    @property
+    def download(self):
+        global is_playlist
+        quality = self.quality
+        save_to = self.get_dl_dir_path
         if not quality and self._url_analyze['video']['url']:
             quality = self._select_quality
-        if not save_to:
-            save_to = self._get_dl_dir
         if self._url_analyze['video']['url']:
             url = self.data['video']['formats'][quality]['url']
             video_title = self.data['video']['title']
-            if index:
-                video_title = f'{index}- ' + video_title
+            if self.index:
+                video_title = f'{self.index}- ' + video_title
             video_title =re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', video_title)).strip()
             file_type = self.data['video']['formats'][quality]['type']
-            file_name = video_title + file_type
+            file_name = self.file_name
+            if file_name:
+                if not file_name.endswith(file_type):
+                    file_name = file_name + file_type
+            else:
+                file_name = video_title + file_type
             if Path(save_to / file_name).exists():
                 print(f'[+] This file exists in: %s ' %(save_to)) 
             else:
                 self._downloader(url, save_to, file_name)
 
         elif self._url_analyze['playlist']['url']:
+            is_playlist = True
             videos = self.data['playlist']['videos']
-            downloaded_files = [str(x).split('\\')[-1] for x in  Path(save_to).glob('*.mp4')]
-            print('[-] Downloading Playlist ... ')
-            print(f'[!] {len(downloaded_files)} video(s) downloaded befor.')
-            print(f'    -> Downloaded videos are in: {save_to}')
-            print('[-] Resume downloading playlist -> ')
+            downloaded_files = [str(x).split('\\')[-1] for x in Path(save_to).glob('*.mp4')]
+            print(f'[-] Downloading Playlist ...  \n    -> Save path: %s' % save_to)
             for vid in videos:
                 vid_title = videos[vid]['title']
                 vid_title = re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', vid_title)).strip()
                 file_name = f'{vid}- ' + vid_title + '.mp4'
-                if file_name not in downloaded_files:
+                if file_name in downloaded_files:
+                    print(f'[+] {file_name[:27]}... Downloaded Before.')
+                else:
+                    print(f'[-] Preparing Download: {file_name[:27]}...', end='\r')
                     url = videos[vid]['url']
-                    self.download(url, quality = quality, index = vid, save_to = save_to)
+                    settings = {
+                        'save_to' : save_to,
+                        'file_name': file_name,
+                        'quality' : quality,
+                        'index' : vid,}
+                    self.__init__(url, settings=settings)
+                    self.download
             print('[+] Playlist Downloaded Successfully.')

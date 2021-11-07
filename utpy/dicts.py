@@ -31,3 +31,13 @@ decode_dict = {
     '\\': '%5C',
     '|': '%7C',
 }
+
+default_settings = {
+    'save_to' : None,
+    'file_name' : None,
+    'quality' : None,
+    'index' : None,
+    'dl_range' : (),
+    'dl_list' : [], 
+    'retries' : 2,
+    }
