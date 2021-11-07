@@ -16,14 +16,26 @@ pip install utpy
 
 ```python
 import utpy
-
+default_settings = {
+    'save_to' : None, # Path to save downloaded video(s) if you want. Read Note (1)
+    'file_name' : None, # you can select video files name
+    'retries' : 2, # Number of retries if videos content not received.
+    } # More settings in next version -Insha'Allah-
 url = 'https://www.youtube.com/watch?v=bIGBYOcxMqM' # video or playlist url
-yt = utpy.Load(url)
+yt = utpy.Load(url, settings = default_settings)
 
 # return all information as dictionary
 yt.data
 
 # download video or videos of playlist
-yt.download()
+yt.download
+```
 
+##### Note (1): Correct save path formts:
+```
+save_to =  'D:/path/to/directory'
+or
+save_to = r'D:\path\to\directory'
+or
+save_to = 'D:\\\path\\\to\\\directory'
 ```
