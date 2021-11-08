@@ -6,7 +6,6 @@ from .decipher import decipher
 from .dicts import default_settings
 from pathlib import Path
 
-
 class Load:
     def __init__(self, url: str, settings: dict = default_settings):
         self.url = url
@@ -269,6 +268,19 @@ class Load:
                 self.download
     
     @property
+    def _get_dl_list(self):
+        if self.dl_range:
+            range_list = list(range(self.dl_range[0], self.dl_range[1] + 1))
+            dl_list = map(str, range_list)
+        elif self.dl_list:
+            dl_list = map(str,  self.dl_list)
+        else:
+            videos = self.data['playlist']['videos']
+            dl_list = [vid for vid in videos]
+        return list(dl_list)
+            
+            
+    @property
     def download(self):
         global is_playlist
         quality = self.quality
@@ -298,20 +310,21 @@ class Load:
             videos = self.data['playlist']['videos']
             downloaded_files = [str(x).split('\\')[-1] for x in Path(save_to).glob('*.mp4')]
             print(f'[-] Downloading Playlist ...  \n    -> Save path: %s' % save_to)
-            for vid in videos:
-                vid_title = videos[vid]['title']
+            dl_list = self._get_dl_list
+            for index in dl_list:
+                vid_title = videos[index]['title']
                 vid_title = re.sub('\s+', ' ', re.sub('[\\\<>\[\]:"/\|?*]', '-', vid_title)).strip()
-                file_name = f'{vid}- ' + vid_title + '.mp4'
+                file_name = f'{index}- ' + vid_title + '.mp4'
                 if file_name in downloaded_files:
                     print(f'[+] {file_name[:27]}... Downloaded Before.')
                 else:
                     print(f'[-] Preparing Download: {file_name[:27]}...', end='\r')
-                    url = videos[vid]['url']
+                    url = videos[index]['url']
                     settings = {
                         'save_to' : save_to,
                         'file_name': file_name,
                         'quality' : quality,
-                        'index' : vid,}
+                        'index' : index,}
                     self.__init__(url, settings=settings)
                     self.download
             print('[+] Playlist Downloaded Successfully.')
